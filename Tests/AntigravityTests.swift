@@ -1,5 +1,7 @@
 import XCTest
+#if canImport(Sparkle)
 import Sparkle
+#endif
 @testable import Codenotch
 
 /// Fixtures are the real thing: the keychain payload's shape and the actual
@@ -750,6 +752,16 @@ final class AppPresenceTests: XCTestCase {
 /// worded here instead.
 @MainActor
 final class UpdateOutcomeTests: XCTestCase {
+    func testAForkCannotStartOrReenableUpstreamUpdates() {
+        let updater = Updater(updatesEnabled: false)
+        updater.start()
+        updater.automatic = true
+        updater.checkNow()
+        XCTAssertFalse(updater.automatic)
+        XCTAssertNil(updater.lastChecked)
+        XCTAssertEqual(updater.outcome, .idle)
+    }
+
     /// The case people actually hit, and the one that most needs reassuring:
     /// nothing is wrong with their copy of the app.
     func testAnUnreachableFeedSaysSoWithoutBlamingTheApp() throws {
@@ -772,12 +784,24 @@ final class UpdateOutcomeTests: XCTestCase {
         XCTAssertTrue(message.contains("1.2.0"))
     }
 
+    #if canImport(Sparkle)
     /// The distinction the wording depends on: a feed that cannot be fetched is
     /// routine, anything else is reported as itself.
     func testOnlyAFeedFailureCountsAsUnreachable() {
         XCTAssertTrue(Updater.isUnreachable(Int(SUError.appcastError.rawValue)))
         XCTAssertFalse(Updater.isUnreachable(Int(SUError.installationError.rawValue)))
     }
+    #else
+    func testMissingUpdaterCannotBeEnabledByPreferences() {
+        let updater = Updater(updatesEnabled: true)
+        updater.automatic = true
+        updater.start()
+        updater.checkNow()
+        XCTAssertFalse(updater.updatesEnabled)
+        XCTAssertFalse(updater.automatic)
+        XCTAssertEqual(updater.outcome, .idle)
+    }
+    #endif
 }
 
 /// The menu bar mark. Loaded from the asset catalogue rather than drawn from

@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(Sparkle)
 import Sparkle
+#endif
 
 /// Keeps the app up to date on its own.
 ///
@@ -14,7 +16,19 @@ import Sparkle
 /// normal drag to /Applications, false if it was copied there with `sudo`), and
 /// the replacement is applied on relaunch rather than mid-flight.
 @MainActor
-final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
+final class Updater: NSObject, ObservableObject {
+    /// A fork must not silently replace its custom code with an upstream release.
+    let updatesEnabled: Bool
+
+    init(updatesEnabled: Bool = Bundle.main.object(forInfoDictionaryKey: "CodenotchUpdatesEnabled") as? Bool ?? true) {
+        #if canImport(Sparkle)
+        self.updatesEnabled = updatesEnabled
+        #else
+        self.updatesEnabled = false
+        #endif
+        super.init()
+    }
+
     /// What the last check came to, in words the settings sheet can show.
     ///
     /// Sparkle's own answer to a failed check is a modal saying "an error
@@ -47,17 +61,29 @@ final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
 
     @Published private(set) var outcome: Outcome = .idle
 
+    #if canImport(Sparkle)
     private lazy var controller = SPUStandardUpdaterController(
         startingUpdater: true, updaterDelegate: self, userDriverDelegate: nil
     )
 
+    #endif
+
     /// Mirrors the preference, so switching it off really does stop the checks
     /// rather than only hiding them.
     var automatic: Bool {
-        get { controller.updater.automaticallyChecksForUpdates }
+        get {
+            #if canImport(Sparkle)
+            return updatesEnabled && controller.updater.automaticallyChecksForUpdates
+            #else
+            return false
+            #endif
+        }
         set {
+            guard updatesEnabled else { return }
+            #if canImport(Sparkle)
             controller.updater.automaticallyChecksForUpdates = newValue
             controller.updater.automaticallyDownloadsUpdates = newValue
+            #endif
         }
     }
 
@@ -65,20 +91,38 @@ final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
     }
 
-    var lastChecked: Date? { controller.updater.lastUpdateCheckDate }
+    var lastChecked: Date? {
+        #if canImport(Sparkle)
+        return updatesEnabled ? controller.updater.lastUpdateCheckDate : nil
+        #else
+        return nil
+        #endif
+    }
 
     /// Starts the scheduled checks. Deliberately not in `init`: the controller
     /// is lazy so that `self` exists before it is handed over as the delegate.
-    func start() { _ = controller }
+    func start() {
+        guard updatesEnabled else { return }
+        #if canImport(Sparkle)
+        _ = controller
+        #endif
+    }
 
     /// The manual path, for someone who does not want to wait for the schedule.
     /// This one *does* show UI — it was asked for, so silence would read as a
     /// broken button.
     func checkNow() {
+        guard updatesEnabled else { return }
+        #if canImport(Sparkle)
         outcome = .checking
         controller.updater.checkForUpdates()
+        #endif
     }
 
+}
+
+#if canImport(Sparkle)
+extension Updater: SPUUpdaterDelegate {
     // MARK: - SPUUpdaterDelegate
 
     nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
@@ -107,3 +151,5 @@ final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
         code == Int(SUError.appcastError.rawValue)
     }
 }
+
+#endif
