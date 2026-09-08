@@ -34,19 +34,12 @@ settings:
     ENABLE_APP_SANDBOX: "NO"
     ENABLE_USER_SCRIPT_SANDBOXING: "NO"
 
-packages:
-  Sparkle:
-    url: https://github.com/sparkle-project/Sparkle
-    from: "2.6.0"
-
 targets:
   Codenotch:
     type: application
     platform: macOS
     sources:
       - path: Sources
-    dependencies:
-      - package: Sparkle
     info:
       path: Sources/Info.plist
       properties:
@@ -62,26 +55,8 @@ targets:
         # build settings keeps one place to bump.
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
-        # --- Sparkle -------------------------------------------------------
-        # Beside the download itself, on hivinz.com. It used to point at a
-        # GitHub Pages URL for a repo that was never created, so every check
-        # got a 404 and Sparkle reported "an error occurred in retrieving
-        # update information" — correctly, since there was nothing there.
-        #
-        # Must stay reachable for as long as any copy is installed: the feed is
-        # the only route by which a shipped build can ever be replaced.
-        SUFeedURL: https://hivinz.com/appcast.xml
-        # The public half of the EdDSA key in the login keychain. Sparkle
-        # refuses any update not signed by its private half, so a hijacked feed
-        # or a swapped download cannot install code. Losing the private key
-        # means no existing install can ever be updated again — back it up.
-        SUPublicEDKey: rmUfT5r49nR+3HdkbR5/YYLghfnAi6L49eOk3sIegSk=
-        # Set explicitly so Sparkle never asks on first launch. Left unset, it
-        # shows a "check for updates automatically?" prompt, which is exactly
-        # the permission this is meant to avoid.
-        SUEnableAutomaticChecks: true
-        SUAutomaticallyUpdate: true
-        SUScheduledCheckInterval: 86400
+        # This fork is installed manually; upstream updates would erase its changes.
+        CodenotchUpdatesEnabled: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.vinz.codenotch
