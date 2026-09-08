@@ -54,7 +54,8 @@ struct NotchRootView: View {
                         now: model.now,
                         direction: model.edge.tooltipDirection,
                         sessionCap: model.sessionCap,
-                        resetTimeFormat: model.resetTimeFormat
+                        resetTimeFormat: model.resetTimeFormat,
+                        tailOffset: tooltipTailOffset(index: index, snapshot: snapshot)
                     )
                         // Deliberately *no* `.id` here: the card is one object
                         // that travels and resizes between cells, which reads
@@ -194,6 +195,23 @@ struct NotchRootView: View {
         )
     }
 
+    private func tooltipLength(_ snapshot: ProviderSnapshot) -> CGFloat {
+        model.edge.isVertical
+            ? NotchLayout.cardHeight(
+                windowCount: snapshot.windows.count,
+                sessionCount: model.activity(for: snapshot.id)?.sessions.count ?? 0,
+                sessionCap: model.sessionCap,
+                statusMessage: snapshot.statusMessage,
+                blockMessage: snapshot.block?.summary(now: model.now)
+            )
+            : NotchLayout.cardWidth
+    }
+
+    private func tooltipTailOffset(index: Int, snapshot: ProviderSnapshot) -> CGFloat {
+        model.slack + model.ringCenter(index: index)
+            - model.tooltipAlong(index: index, length: tooltipLength(snapshot))
+    }
+
     /// The tooltip is the card plus its tail; `position` centres that pair, so
     /// the tail lands on the hovered cell and the card sits beyond it.
     private func tooltipCentre(
@@ -209,7 +227,7 @@ struct NotchRootView: View {
                 blockMessage: snapshot.block?.summary(now: model.now)
             )
         return place.point(
-            along: model.slack + model.ringCenter(index: index),
+            along: model.tooltipAlong(index: index, length: tooltipLength(snapshot)),
             across: model.tooltipInset + (NotchLayout.tailLength + card) / 2
         )
     }
