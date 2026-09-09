@@ -83,6 +83,53 @@ final class NotchRenderTests: XCTestCase {
             )
         }
     }
+
+    /// The orb has to stay attached to the notch at every size.
+    ///
+    /// `position` hands back a view the size of the whole panel, so a scale
+    /// applied *after* it scales that layer about the panel's centre and slides
+    /// the orb away by a share of the panel — the arc left floating off the
+    /// corner it is drawn to hug. Arithmetic cannot see that: the numbers going
+    /// in were right and the modifier order was not, so this looks at the
+    /// pixels instead.
+    func testNothingIsPaintedBeyondTheNotchAndItsOrbAtAnySize() {
+        for size in NotchSize.allCases {
+            let m = model(edge: .right)
+            m.sizeScale = size.scale
+            guard let rep = render(m) else {
+                XCTFail("\(size.rawValue): no image")
+                continue
+            }
+            let place = NotchPlacement(edge: .right, panelSize: m.panelSize)
+            let scale = size.scale
+            // What the notch and the orb legitimately reach, derived rather
+            // than guessed, plus a point for the stroke's own width.
+            let reach = m.orbArcRadius * scale + NotchLayout.orbStroke
+            let deepest = max(m.notchDepth * scale, m.orbInset * scale + reach)
+            let furthest = m.slack + max(m.shapeLength, m.orbAlong) * scale + reach
+            let nearest = m.slack - reach
+
+            var maxAcross = 0.0, maxAlong = -Double.infinity, minAlong = Double.infinity
+            for x in stride(from: 0, to: rep.pixelsWide, by: 2) {
+                for y in stride(from: 0, to: rep.pixelsHigh, by: 2) {
+                    guard let colour = rep.colorAt(x: x, y: y),
+                          colour.alphaComponent > 0.5 else { continue }
+                    let point = CGPoint(x: x, y: y)
+                    maxAcross = max(maxAcross, place.across(of: point))
+                    maxAlong = max(maxAlong, place.along(of: point))
+                    minAlong = min(minAlong, place.along(of: point))
+                }
+            }
+
+            XCTAssertLessThanOrEqual(maxAcross, deepest + 1,
+                                     "\(size.rawValue): something is painted \(maxAcross)pt in "
+                                     + "from the bezel, past the \(deepest)pt the notch and orb reach")
+            XCTAssertLessThanOrEqual(maxAlong, furthest + 1,
+                                     "\(size.rawValue): something is painted past the far end")
+            XCTAssertGreaterThanOrEqual(minAlong, nearest - 1,
+                                        "\(size.rawValue): something is painted before the near end")
+        }
+    }
 }
 
 /// The panel's size is worked out by `NotchGeometry` and by nobody else.
@@ -515,29 +562,32 @@ final class StaleAfterMarginTests: XCTestCase {
 final class PhysicalPanelIntegrationTests: XCTestCase {
     func testActualPanelsStayOnTheBezelAndKeepCornerCardsVisible() throws {
         let screen = try XCTUnwrap(NSScreen.main)
-        for edge in NotchEdge.allCases {
-            let controller = NotchWindowController()
-            controller.assignedScreen = screen
-            controller.model.edge = edge
-            controller.model.snapshots = Array(Fixtures.snapshots().prefix(2))
-            controller.show()
-            defer { controller.stop() }
-            for offset: CGFloat in [-10000, 0, 10000] {
-                controller.model.alongOffset = offset
-                controller.relocate()
-                let frame = try XCTUnwrap(controller.panelFrameForTesting)
-                switch edge {
-                case .left: XCTAssertEqual(frame.minX, screen.frame.minX, accuracy: 1)
-                case .right: XCTAssertEqual(frame.maxX, screen.frame.maxX, accuracy: 1)
-                case .top: XCTAssertEqual(frame.maxY, screen.frame.maxY, accuracy: 1)
-                case .bottom: XCTAssertEqual(frame.minY, screen.frame.minY, accuracy: 1)
-                }
-                let range = try XCTUnwrap(controller.model.visibleAlongRange)
-                let length: CGFloat = edge.isVertical ? 260 : NotchLayout.cardWidth
-                for index in 0..<2 {
-                    let centre = controller.model.tooltipAlong(index: index, length: length)
-                    XCTAssertGreaterThanOrEqual(centre - length / 2, range.lowerBound)
-                    XCTAssertLessThanOrEqual(centre + length / 2, range.upperBound)
+        for size in NotchSize.allCases {
+            for edge in NotchEdge.allCases {
+                let controller = NotchWindowController()
+                controller.assignedScreen = screen
+                controller.model.edge = edge
+                controller.model.sizeScale = size.scale
+                controller.model.snapshots = Array(Fixtures.snapshots().prefix(2))
+                controller.show()
+                defer { controller.stop() }
+                for offset: CGFloat in [-10000, 0, 10000] {
+                    controller.model.alongOffset = offset
+                    controller.relocate()
+                    let frame = try XCTUnwrap(controller.panelFrameForTesting)
+                    switch edge {
+                    case .left: XCTAssertEqual(frame.minX, screen.frame.minX, accuracy: 1)
+                    case .right: XCTAssertEqual(frame.maxX, screen.frame.maxX, accuracy: 1)
+                    case .top: XCTAssertEqual(frame.maxY, screen.frame.maxY, accuracy: 1)
+                    case .bottom: XCTAssertEqual(frame.minY, screen.frame.minY, accuracy: 1)
+                    }
+                    let range = try XCTUnwrap(controller.model.visibleAlongRange)
+                    let length: CGFloat = edge.isVertical ? 260 : NotchLayout.cardWidth
+                    for index in 0..<2 {
+                        let centre = controller.model.tooltipAlong(index: index, length: length)
+                        XCTAssertGreaterThanOrEqual(centre - length / 2, range.lowerBound)
+                        XCTAssertLessThanOrEqual(centre + length / 2, range.upperBound)
+                    }
                 }
             }
         }

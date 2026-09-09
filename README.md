@@ -1,6 +1,6 @@
 <div align="center">
 
-# Codenotch
+![Codenotch](docs/design/codenotch-banner.png)
 
 [![CI](https://github.com/vinzdg/codenotch/actions/workflows/ci.yml/badge.svg)](https://github.com/vinzdg/codenotch/actions/workflows/ci.yml)
 ![Platform](https://img.shields.io/badge/platform-macOS%2026%2B-black)
@@ -34,6 +34,7 @@ A Windows port — Rust/Tauri 2, same design and providers — lives in [`window
 | **GLM** | official | Z.ai's Coding Plan monitor endpoint, with a key borrowed from whichever coding tool already holds one — Claude Code's `settings.json`, ZCode, or OpenCode. |
 | **Grok** | official | The Grok CLI session in `~/.grok/auth.json`, against the same credits billing endpoint `/usage` uses. |
 | **OpenCode** | official | The Go plan's official usage endpoint, with the `opencode-go` key OpenCode itself stores on sign-in. |
+| **Command Code** | official | The GOAT plan's `/alpha` billing endpoints, with the key the Command Code app writes to `~/.commandcode/auth.json`. |
 | **GitHub Copilot** | official | GitHub's Copilot quota endpoint, authenticated with the GitHub CLI session already on the Mac (`gh auth login`). |
 
 Codenotch never signs in anywhere. Every reading is borrowed from a credential
@@ -135,6 +136,14 @@ remembers its position. On a Mac with a hardware notch, the top
 placement takes its exact shape, so the two read as one rather than as a bar
 parked underneath it.
 
+Along that edge it sits wherever you put it: hold ⌥ and drag the notch to
+slide it, and each edge remembers where you left it, so moving the notch to the
+top and back does not lose the place you chose on the right. **Recentre** in
+Settings → Appearance puts the current edge back in the middle.
+
+**Size** in the same place draws the whole notch — rings, text, tooltip and all
+— smaller or larger. Medium is the size it was designed at.
+
 At rest it is a small pill on the screen edge that unfolds when the pointer
 reaches it — configurable in Settings to always show, or to hide entirely.
 Settings live in an orb below the notch: an arc at rest, a gear on hover.
@@ -152,7 +161,7 @@ The app itself can show a Dock icon, a menu bar icon, or neither.
 ## Updates
 
 **This fork is updated manually.** Its build excludes the Sparkle updater so
-an official release cannot overwrite the multi-account changes. Settings shows
+an official release cannot overwrite the custom screen-edge placement. Settings shows
 this explicitly, and an old saved update preference cannot re-enable it.
 
 The upstream Codenotch updates itself. [Sparkle](https://sparkle-project.org) checks daily
@@ -174,6 +183,19 @@ certificate and an App Store Connect notary profile, and is only ever run by
 the maintainer to cut an official release. See
 [CONTRIBUTING.md](CONTRIBUTING.md). CI runs the same unit tests unsigned via
 `make test-ci`.
+
+A Debug build is ad-hoc signed, which means it has no stable code identity, so
+macOS cannot match it to a saved keychain "Always Allow" — the prompt to read a
+tool's token returns on every launch. To make the grant stick during local
+development, sign the built app with a stable self-signed identity:
+
+```sh
+Scripts/sign-local.sh   # signs /Applications/Codenotch.app (pass a path to override)
+```
+
+It creates a reusable `Codenotch Local Signing` certificate in your login
+keychain (no Apple Developer account needed) and re-signs the app. Grant the
+keychain prompt once more after signing; it will not ask again.
 
 Run with `CODENOTCH_DEMO=1` to see fixed sample data instead of live readings.
 

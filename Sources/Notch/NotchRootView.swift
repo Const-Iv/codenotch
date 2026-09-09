@@ -34,6 +34,15 @@ struct NotchRootView: View {
                         // the AppKit-level path did not.
                         .contentShape(Circle())
                         .onTapGesture { model.onOpenSettings?() }
+                        // Before `position`, not after. `position` hands back a
+                        // view the size of the whole panel with the orb placed
+                        // inside it, so a scale applied after this one scales
+                        // *that* layer about the panel's centre — which moves
+                        // the orb away from the notch by a share of the panel,
+                        // and left the arc floating off the corner it is drawn
+                        // to hug. Here it scales the orb about its own centre,
+                        // which is what `orbCentre` then places.
+                        .scaleEffect(model.sizeScale)
                         .position(orbCentre(place))
                         // Outward, into the black — not inward to nothing.
                         .scaleEffect(model.isExpanded ? 1 : model.orbMergeScale)
@@ -104,9 +113,17 @@ struct NotchRootView: View {
             // slide out of the end of it; clipped, they are swallowed by the
             // outline as it closes, which is what a notch should do.
             .clipShape(SideNotchShape(edge: model.edge, joining: model.joinedNotch))
+            // The size choice, applied to the notch and the cells it carries —
+            // and to nothing else. Drawn at design-frame size and scaled from
+            // there, so `NotchLayout` keeps measuring the one thing it is
+            // quoted from.
+            .scaleEffect(model.sizeScale)
+            // `notchLeadingInset + notchLength / 2` is `slack + shapeLength / 2`
+            // — the two `notchLength` terms cancel — so folding away moves the
+            // centre nowhere and only the shape's own half-extent scales here.
             .position(place.point(
-                along: model.notchLeadingInset + model.notchLength / 2,
-                across: model.notchDepth / 2
+                along: model.slack + model.shapeLength * model.sizeScale / 2,
+                across: model.notchDepth * model.sizeScale / 2
             ))
     }
 
@@ -188,10 +205,13 @@ struct NotchRootView: View {
 
     /// The orb sits on the flare's own centre of curvature, one radius in from
     /// the bezel and level with the far end of the shape.
+    /// The orb belongs to the notch, not to the tooltip, so it scales with it —
+    /// it is tucked into the corner the shape's own flare makes, and a fixed
+    /// orb against a scaled flare would sit off that corner.
     private func orbCentre(_ place: NotchPlacement) -> CGPoint {
         place.point(
-            along: model.slack + model.orbAlong,
-            across: model.orbInset
+            along: model.slack + model.orbAlong * model.sizeScale,
+            across: model.orbInset * model.sizeScale
         )
     }
 
@@ -199,16 +219,19 @@ struct NotchRootView: View {
         model.edge.isVertical
             ? NotchLayout.cardHeight(
                 windowCount: snapshot.windows.count,
+                groupCount: snapshot.windowGroupCount,
                 sessionCount: model.activity(for: snapshot.id)?.sessions.count ?? 0,
                 sessionCap: model.sessionCap,
                 statusMessage: snapshot.statusMessage,
-                blockMessage: snapshot.block?.summary(now: model.now)
+                blockMessage: snapshot.block?.summary(now: model.now),
+                hasTokenUsage: snapshot.tokenUsage != nil,
+                compactRowCount: snapshot.compactRowCount
             )
             : NotchLayout.cardWidth
     }
 
     private func tooltipTailOffset(index: Int, snapshot: ProviderSnapshot) -> CGFloat {
-        model.slack + model.ringCenter(index: index)
+        model.slack + model.ringCenter(index: index) * model.sizeScale
             - model.tooltipAlong(index: index, length: tooltipLength(snapshot))
     }
 
@@ -221,11 +244,17 @@ struct NotchRootView: View {
             ? NotchLayout.cardWidth
             : NotchLayout.cardHeight(
                 windowCount: snapshot.windows.count,
+                groupCount: snapshot.windowGroupCount,
                 sessionCount: model.activity(for: snapshot.id)?.sessions.count ?? 0,
                 sessionCap: model.sessionCap,
                 statusMessage: snapshot.statusMessage,
-                blockMessage: snapshot.block?.summary(now: model.now)
+                blockMessage: snapshot.block?.summary(now: model.now),
+                hasTokenUsage: snapshot.tokenUsage != nil,
+                compactRowCount: snapshot.compactRowCount
             )
+        // The ring it points at has moved with the notch, so the tail follows
+        // it — but the card beyond the tail is drawn at its own size, and
+        // `tooltipInset` already ends where the drawn notch does.
         return place.point(
             along: model.tooltipAlong(index: index, length: tooltipLength(snapshot)),
             across: model.tooltipInset + (NotchLayout.tailLength + card) / 2

@@ -6,6 +6,8 @@ import os
 /// What the user has chosen, kept in `UserDefaults`.
 @MainActor
 final class Preferences: ObservableObject {
+    static let showUsagePaceKey = "showUsagePace"
+
     /// Providers the user has switched off. Stored as the *disconnected* set
     /// rather than the connected one, so a provider added in a later version is
     /// on by default instead of silently staying dark.
@@ -48,6 +50,11 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(notchEdge.rawValue, forKey: Keys.edge) }
     }
 
+    /// How large the notch is drawn.
+    @Published var notchSize: NotchSize {
+        didSet { defaults.set(notchSize.rawValue, forKey: Keys.size) }
+    }
+
     /// The display the notch stays on, or the original focus-following behaviour.
     ///
     /// Only meaningful in `NotchScreenScope.main` — pinning a display and
@@ -87,6 +94,10 @@ final class Preferences: ObservableObject {
 
     @Published var resetTimeFormat: ResetTimeFormat {
         didSet { defaults.set(resetTimeFormat.rawValue, forKey: Keys.resetTimeFormat) }
+    }
+
+    @Published var showUsagePace: Bool {
+        didSet { defaults.set(showUsagePace, forKey: Self.showUsagePaceKey) }
     }
 
     /// The colour used for positive usage and active-work indicators.
@@ -184,6 +195,8 @@ final class Preferences: ObservableObject {
         static let visibility = "notchVisibility"
         static let presence = "appPresence"
         static let edge = "notchEdge"
+        // A new key, so there is nothing under the old app name to migrate.
+        static let size = "notchSize"
         static let display = "notchDisplay"
         static let resetTimeFormat = "resetTimeFormat"
         static let scope = "notchScope"
@@ -265,10 +278,15 @@ final class Preferences: ObservableObject {
         // side of a Mac that no system chrome claims by default.
         self.notchEdge = defaults.string(forKey: Keys.edge)
             .flatMap(NotchEdge.init(rawValue:)) ?? .right
+        // Medium is the design frame at 1:1, so an install that predates this
+        // choice keeps exactly the notch it already had.
+        self.notchSize = defaults.string(forKey: Keys.size)
+            .flatMap(NotchSize.init(rawValue:)) ?? .medium
         self.displayPreference = defaults.string(forKey: Keys.display)
             .map(DisplayPreference.display) ?? .followActiveWindow
         self.resetTimeFormat = defaults.string(forKey: Keys.resetTimeFormat)
             .flatMap(ResetTimeFormat.init(rawValue:)) ?? .automatic
+        self.showUsagePace = defaults.bool(forKey: Self.showUsagePaceKey)
         // Absent means never chosen. Main display only, because that is what a
         // single-panel setup always did — all-displays on a fresh install
         // would put notches where none were expected.
